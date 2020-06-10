@@ -1,4 +1,4 @@
-package simple_demos;
+package test.benchmark;
 
 import java.util.Properties;
 
@@ -6,7 +6,11 @@ import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.Produced;
+import org.apache.kafka.streams.kstream.ValueMapper;
+
 
 public class UppercaseSentences {
 
@@ -20,18 +24,29 @@ public class UppercaseSentences {
 		
 		final StreamsBuilder builder = new StreamsBuilder();
 		
-		KStream<String, String> source = builder.stream("normal-sentence");
+		KStream<String, InputDataStructure> source = builder.stream("normal-sentence-test", Consumed.with(Serdes.String(), new InputSerd()));
 		
-		KStream<String, String> upperCasedSentence = source.mapValues(v->v.toUpperCase());
+		KStream<String, OutputDataStructure> upperCasedSentence = source.mapValues(new ValueMapper<InputDataStructure, OutputDataStructure>() {
+			@Override
+			public OutputDataStructure apply(InputDataStructure input) {
+				String upperCaseSentence = input.getSentence().toUpperCase();
+				
+				System.out.println("===========upper: " + upperCaseSentence + ", timeStap: " + input.getStartTimeStamp());
+				return new OutputDataStructure(upperCaseSentence, input.getStartTimeStamp(), input.getSentence().length());
+			}
+		});
 		
-		upperCasedSentence.to("uppercased-sentence");
+		upperCasedSentence.to("uppercased-sentence-test", Produced.with(Serdes.String(), new OutputSerd()));
 		
 		final KafkaStreams streams = new KafkaStreams(builder.build(), streamsConfiguration);
 		
 		streams.start();
+		
+		System.out.println(streams.toString());
 		
 		Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
 
 	}
 
 }
+

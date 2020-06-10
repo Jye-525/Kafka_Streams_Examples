@@ -52,7 +52,6 @@ public class WordCount
 			streams.start();
 			latch.await();
 		} catch (Throwable e) {
-			// TODO: handle exception
 			System.exit(1);
 		}
         
