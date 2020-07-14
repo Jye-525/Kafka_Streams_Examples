@@ -6,10 +6,14 @@ import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.kstream.ValueMapper;
+
+import test.clients.OutputDataStructure;
+import test.clients.OutputSerd;
 
 
 public class UppercaseSentences {
@@ -24,25 +28,37 @@ public class UppercaseSentences {
 		
 		final StreamsBuilder builder = new StreamsBuilder();
 		
-		KStream<String, InputDataStructure> source = builder.stream("normal-sentence-test", Consumed.with(Serdes.String(), new InputSerd()));
+		KStream<String, DataStructure> source = builder.stream("normal-sentence-test", Consumed.with(Serdes.String(), new DataStructureSerd()));
 		
-		KStream<String, OutputDataStructure> upperCasedSentence = source.mapValues(new ValueMapper<InputDataStructure, OutputDataStructure>() {
+		KStream<String, DataStructure> upperCasedSentence = source.mapValues(new ValueMapper<DataStructure, DataStructure>() {
 			@Override
-			public OutputDataStructure apply(InputDataStructure input) {
-				String upperCaseSentence = input.getSentence().toUpperCase();
+			public DataStructure apply(DataStructure input) {
 				
-				System.out.println("===========upper: " + upperCaseSentence + ", timeStap: " + input.getStartTimeStamp());
-				return new OutputDataStructure(upperCaseSentence, input.getStartTimeStamp(), input.getSentence().length());
+				input.toUpperCase();
+				System.out.println("During the first map===========upper: " + input.getSentence() + ", timeStap: " + input.getStartTimeStamp());
+				return input;
+			}
+		});
+				
+		KStream<String, DataStructure> upperCasedSentence1 = upperCasedSentence.mapValues(new ValueMapper<DataStructure, DataStructure>() {
+			@Override
+			public DataStructure apply(DataStructure input) {
+				
+				input.addCharacterToSentence("######");
+				System.out.println("During the second map===========upper: " + input.getSentence() + ", timeStap: " + input.getStartTimeStamp());
+				return input;
 			}
 		});
 		
-		upperCasedSentence.to("uppercased-sentence-test", Produced.with(Serdes.String(), new OutputSerd()));
+		upperCasedSentence1.to("uppercased-sentence-test", Produced.with(Serdes.String(), new DataStructureSerd()));
 		
-		final KafkaStreams streams = new KafkaStreams(builder.build(), streamsConfiguration);
+		Topology topology = builder.build();
+		
+		final KafkaStreams streams = new KafkaStreams(topology, streamsConfiguration);
 		
 		streams.start();
 		
-		System.out.println(streams.toString());
+		System.out.println(topology.describe());
 		
 		Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
 
